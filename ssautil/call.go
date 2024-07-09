@@ -9,7 +9,7 @@ import (
 
 type StaticMethodCall struct {
 	ssa.CallCommon
-	Recv   *types.Var
+	Recv   ssa.Value
 	Method *ssa.Function
 	Name   string
 }
@@ -17,7 +17,7 @@ type StaticMethodCall struct {
 func NewStaticMethodCall(common *ssa.CallCommon) *StaticMethodCall {
 	fn := common.Value.(*ssa.Function)
 	name := fmt.Sprintf("(%s).%s", fn.Signature.Recv().Type(), fn.Name())
-	return &StaticMethodCall{CallCommon: *common, Recv: fn.Signature.Recv(), Method: fn, Name: name}
+	return &StaticMethodCall{CallCommon: *common, Recv: common.Args[0], Method: fn, Name: name}
 }
 
 type DynamicMethodCall struct {
