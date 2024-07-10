@@ -16,8 +16,8 @@ type StaticMethodCall struct {
 
 func NewStaticMethodCall(common *ssa.CallCommon) *StaticMethodCall {
 	fn := common.Value.(*ssa.Function)
-	name := fmt.Sprintf("(%s).%s", fn.Signature.Recv().Type(), fn.Name())
-	return &StaticMethodCall{CallCommon: *common, Recv: common.Args[0], Method: fn, Name: name}
+	name := fmt.Sprintf("(%s).%s", common.Signature().Recv().Type(), fn.Name())
+	return &StaticMethodCall{CallCommon: *common, Pkg: common.Signature().Recv().Pkg(), Recv: common.Args[0], Method: fn, Args: common.Args[1:], Name: name}
 }
 
 type DynamicMethodCall struct {
@@ -52,12 +52,12 @@ type StaticFunctionCall struct {
 
 func NewStaticFunctionCall(common *ssa.CallCommon) *StaticFunctionCall {
 	fn := common.Value.(*ssa.Function)
-	name := fmt.Sprintf("%s.%s", fn.Pkg.Pkg.Name(), fn.Name())
 	if fn.Package() != nil {
+		name := fmt.Sprintf("%s.%s", fn.Package().Pkg.Path(), fn.Name())
 		return &StaticFunctionCall{CallCommon: *common, Func: fn, Name: name}
 	}
 	// generics static function call
-	return &StaticFunctionCall{CallCommon: *common, Func: fn.Origin(), Name: name}
+	return &StaticFunctionCall{CallCommon: *common, Func: fn.Origin(), Name: fn.Origin().Package().Pkg.Name()}
 }
 
 type BuiltinStaticFunctionCall struct {
