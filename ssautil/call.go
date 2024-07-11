@@ -17,10 +17,12 @@ type Method interface {
 	Recv() ssa.Value
 	Method() *types.Func
 	Arg(idx int) ssa.Value
+	ArgsLen() int
 }
 type Function interface {
 	Func() *ssa.Function
 	Arg(idx int) ssa.Value
+	ArgsLen() int
 }
 type PackageMethod interface {
 	Packager
@@ -57,6 +59,9 @@ func (s *StaticMethodCall) Method() *types.Func {
 func (s *StaticMethodCall) Arg(idx int) ssa.Value {
 	return s.Args[idx+1]
 }
+func (s *StaticMethodCall) ArgsLen() int {
+	return len(s.Args) - 1
+}
 
 type DynamicMethodCall struct {
 	ssa.CallCommon
@@ -84,6 +89,9 @@ func (d *DynamicMethodCall) Method() *types.Func {
 func (d *DynamicMethodCall) Arg(idx int) ssa.Value {
 	return d.Args[idx]
 }
+func (d *DynamicMethodCall) ArgsLen() int {
+	return len(d.Args)
+}
 
 type BuiltinDynamicMethodCall struct {
 	ssa.CallCommon
@@ -107,6 +115,9 @@ func (b *BuiltinDynamicMethodCall) Method() *types.Func {
 }
 func (b *BuiltinDynamicMethodCall) Arg(idx int) ssa.Value {
 	return b.Args[idx]
+}
+func (b *BuiltinDynamicMethodCall) ArgsLen() int {
+	return len(b.Args)
 }
 
 type StaticFunctionCall struct {
@@ -136,6 +147,9 @@ func (s *StaticFunctionCall) Func() *ssa.Function {
 func (s *StaticFunctionCall) Arg(idx int) ssa.Value {
 	return s.Args[idx]
 }
+func (s *StaticFunctionCall) ArgsLen() int {
+	return len(s.Args)
+}
 
 type BuiltinStaticFunctionCall struct {
 	ssa.CallCommon
@@ -157,6 +171,9 @@ func (b *BuiltinStaticFunctionCall) Func() *ssa.Builtin {
 func (b *BuiltinStaticFunctionCall) Arg(idx int) ssa.Value {
 	return b.Args[idx]
 }
+func (b *BuiltinStaticFunctionCall) ArgsLen() int {
+	return len(b.Args)
+}
 
 type StaticFunctionClosureCall struct {
 	ssa.CallCommon
@@ -175,6 +192,12 @@ func (s *StaticFunctionClosureCall) Parent() *ssa.Function {
 func (s *StaticFunctionClosureCall) Func() *ssa.Function {
 	return s.Value.(*ssa.MakeClosure).Fn.(*ssa.Function)
 }
+func (s *StaticFunctionClosureCall) Arg(idx int) ssa.Value {
+	return s.Args[idx]
+}
+func (s *StaticFunctionClosureCall) ArgsLen() int {
+	return len(s.Args)
+}
 
 type DynamicFunctionCall struct {
 	ssa.CallCommon
@@ -186,6 +209,12 @@ func NewDynamicFunctionCall(common *ssa.CallCommon) *DynamicFunctionCall {
 
 func (d *DynamicFunctionCall) String() string {
 	return d.Signature().String()
+}
+func (d *DynamicFunctionCall) Arg(idx int) ssa.Value {
+	return d.Args[idx]
+}
+func (d *DynamicFunctionCall) ArgsLen() int {
+	return len(d.Args)
 }
 
 type CallInfo interface {
