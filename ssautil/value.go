@@ -68,9 +68,9 @@ func ValueToStringsWithMaxDepth(v ssa.Value, maxDepth int) ([]string, bool) {
 			case *ssa.Call:
 				switch c := GetFuncInfo(t.Common()).(type) {
 				case *StaticFunctionCall:
-					if c.Name == "fmt.Sprintf" {
+					if c.Name() == "fmt.Sprintf" {
 						return fmtSprintfToStrings(t, next)
-					} else if c.Name == "strings.Join" {
+					} else if c.Name() == "strings.Join" {
 						return stringsJoinToStrings(t, next)
 					}
 				}

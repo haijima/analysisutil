@@ -7,78 +7,173 @@ import (
 	"golang.org/x/tools/go/ssa"
 )
 
+type Namer interface {
+	Name() string
+}
+type Packager interface {
+	Pkg() *types.Package
+}
+type Method interface {
+	Recv() ssa.Value
+	Method() *types.Func
+	Arg(idx int) ssa.Value
+}
+type Function interface {
+	Func() *ssa.Function
+	Arg(idx int) ssa.Value
+}
+type PackageMethod interface {
+	Packager
+	Method
+}
+type PackageFunction interface {
+	Packager
+	Function
+}
+
 type StaticMethodCall struct {
 	ssa.CallCommon
-	Recv   ssa.Value
-	Method *ssa.Function
-	Name   string
 }
 
 func NewStaticMethodCall(common *ssa.CallCommon) *StaticMethodCall {
-	fn := common.Value.(*ssa.Function)
-	name := fmt.Sprintf("(%s).%s", common.Signature().Recv().Type(), fn.Name())
-	return &StaticMethodCall{CallCommon: *common, Pkg: common.Signature().Recv().Pkg(), Recv: common.Args[0], Method: fn, Args: common.Args[1:], Name: name}
+	return &StaticMethodCall{CallCommon: *common}
+}
+
+func (s *StaticMethodCall) String() string {
+	return s.Signature().String()
+}
+func (s *StaticMethodCall) Name() string {
+	return fmt.Sprintf("(%s).%s", s.Signature().Recv().Type(), s.Method().Name())
+}
+func (s *StaticMethodCall) Pkg() *types.Package {
+	return s.Signature().Recv().Pkg()
+}
+func (s *StaticMethodCall) Recv() ssa.Value {
+	return s.Args[0]
+}
+func (s *StaticMethodCall) Method() *types.Func {
+	return s.Value.(*ssa.Function).Object().(*types.Func)
+}
+func (s *StaticMethodCall) Arg(idx int) ssa.Value {
+	return s.Args[idx+1]
 }
 
 type DynamicMethodCall struct {
 	ssa.CallCommon
-	Recv   ssa.Value
-	Method *types.Func
-	Name   string
 }
 
 func NewDynamicMethodCall(common *ssa.CallCommon) *DynamicMethodCall {
-	name := fmt.Sprintf("%s.%s", common.Value.Type().String(), common.Method.Name())
-	return &DynamicMethodCall{CallCommon: *common, Recv: common.Value, Method: common.Method, Name: name}
+	return &DynamicMethodCall{CallCommon: *common}
+}
+
+func (d *DynamicMethodCall) String() string {
+	return d.Signature().String()
+}
+func (d *DynamicMethodCall) Name() string {
+	return fmt.Sprintf("%s.%s", d.Recv().Type(), d.Method().Name())
+}
+func (d *DynamicMethodCall) Pkg() *types.Package {
+	return d.Signature().Recv().Pkg()
+}
+func (d *DynamicMethodCall) Recv() ssa.Value {
+	return d.Value
+}
+func (d *DynamicMethodCall) Method() *types.Func {
+	return d.CallCommon.Method
+}
+func (d *DynamicMethodCall) Arg(idx int) ssa.Value {
+	return d.Args[idx]
 }
 
 type BuiltinDynamicMethodCall struct {
 	ssa.CallCommon
-	Recv   ssa.Value
-	Method *types.Func
-	Name   string
 }
 
 func NewBuiltinDynamicMethodCall(common *ssa.CallCommon) *BuiltinDynamicMethodCall {
-	name := fmt.Sprintf("%s.%s", common.Value.Type().String(), common.Method.Name())
-	return &BuiltinDynamicMethodCall{CallCommon: *common, Recv: common.Value, Method: common.Method, Name: name}
+	return &BuiltinDynamicMethodCall{CallCommon: *common}
+}
+
+func (b *BuiltinDynamicMethodCall) String() string {
+	return b.Signature().String()
+}
+func (b *BuiltinDynamicMethodCall) Name() string {
+	return fmt.Sprintf("%s.%s", b.Recv().Type(), b.Method().Name())
+}
+func (b *BuiltinDynamicMethodCall) Recv() ssa.Value {
+	return b.Value
+}
+func (b *BuiltinDynamicMethodCall) Method() *types.Func {
+	return b.CallCommon.Method
+}
+func (b *BuiltinDynamicMethodCall) Arg(idx int) ssa.Value {
+	return b.Args[idx]
 }
 
 type StaticFunctionCall struct {
 	ssa.CallCommon
-	Func *ssa.Function
-	Name string
 }
 
 func NewStaticFunctionCall(common *ssa.CallCommon) *StaticFunctionCall {
-	fn := common.Value.(*ssa.Function)
+	return &StaticFunctionCall{CallCommon: *common}
+}
+
+func (s *StaticFunctionCall) String() string {
+	return s.Signature().String()
+}
+func (s *StaticFunctionCall) Name() string {
+	return fmt.Sprintf("%s.%s", s.Pkg().Path(), s.Func().Name())
+}
+func (s *StaticFunctionCall) Pkg() *types.Package {
+	return s.Func().Package().Pkg
+}
+func (s *StaticFunctionCall) Func() *ssa.Function {
+	fn := s.Value.(*ssa.Function)
 	if fn.Package() != nil {
-		name := fmt.Sprintf("%s.%s", fn.Package().Pkg.Path(), fn.Name())
-		return &StaticFunctionCall{CallCommon: *common, Func: fn, Name: name}
+		return fn
 	}
-	// generics static function call
-	return &StaticFunctionCall{CallCommon: *common, Func: fn.Origin(), Name: fn.Origin().Package().Pkg.Name()}
+	return fn.Origin() // generics static function call
+}
+func (s *StaticFunctionCall) Arg(idx int) ssa.Value {
+	return s.Args[idx]
 }
 
 type BuiltinStaticFunctionCall struct {
 	ssa.CallCommon
-	Func *ssa.Builtin
-	Name string
 }
 
 func NewBuiltinStaticFunctionCall(common *ssa.CallCommon) *BuiltinStaticFunctionCall {
-	name := common.Value.Name()
-	return &BuiltinStaticFunctionCall{CallCommon: *common, Func: common.Value.(*ssa.Builtin), Name: name}
+	return &BuiltinStaticFunctionCall{CallCommon: *common}
+}
+
+func (b *BuiltinStaticFunctionCall) String() string {
+	return b.Signature().String()
+}
+func (b *BuiltinStaticFunctionCall) Name() string {
+	return b.Value.Name()
+}
+func (b *BuiltinStaticFunctionCall) Func() *ssa.Builtin {
+	return b.Value.(*ssa.Builtin)
+}
+func (b *BuiltinStaticFunctionCall) Arg(idx int) ssa.Value {
+	return b.Args[idx]
 }
 
 type StaticFunctionClosureCall struct {
 	ssa.CallCommon
-	Parent *ssa.Function
-	Func   *ssa.Function
 }
 
 func NewStaticFunctionClosureCall(common *ssa.CallCommon) *StaticFunctionClosureCall {
-	return &StaticFunctionClosureCall{CallCommon: *common, Parent: common.Value.Parent(), Func: common.Value.(*ssa.MakeClosure).Fn.(*ssa.Function)}
+	return &StaticFunctionClosureCall{CallCommon: *common}
+}
+
+func (s *StaticFunctionClosureCall) String() string {
+	return s.Signature().String()
+}
+func (s *StaticFunctionClosureCall) Parent() *ssa.Function {
+	return s.Value.Parent()
+}
+func (s *StaticFunctionClosureCall) Func() *ssa.Function {
+	return s.Value.(*ssa.MakeClosure).Fn.(*ssa.Function)
 }
 
 type DynamicFunctionCall struct {
@@ -87,6 +182,10 @@ type DynamicFunctionCall struct {
 
 func NewDynamicFunctionCall(common *ssa.CallCommon) *DynamicFunctionCall {
 	return &DynamicFunctionCall{CallCommon: *common}
+}
+
+func (d *DynamicFunctionCall) String() string {
+	return d.Signature().String()
 }
 
 type CallInfo interface {
