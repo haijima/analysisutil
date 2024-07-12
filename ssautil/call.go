@@ -186,6 +186,12 @@ func NewStaticFunctionClosureCall(common *ssa.CallCommon) *StaticFunctionClosure
 func (s *StaticFunctionClosureCall) String() string {
 	return s.Signature().String()
 }
+func (s *StaticFunctionClosureCall) Name() string {
+	return fmt.Sprintf("%s.%s", s.Pkg().Path(), s.Func().Name())
+}
+func (s *StaticFunctionClosureCall) Pkg() *types.Package {
+	return s.Func().Package().Pkg
+}
 func (s *StaticFunctionClosureCall) Parent() *ssa.Function {
 	return s.Value.Parent()
 }
@@ -210,6 +216,16 @@ func NewDynamicFunctionCall(common *ssa.CallCommon) *DynamicFunctionCall {
 func (d *DynamicFunctionCall) String() string {
 	return d.Signature().String()
 }
+func (d *DynamicFunctionCall) Name() string {
+	switch fn := d.Value.(type) {
+	case *ssa.Call:
+		return fn.Call.Value.Name()
+	case *ssa.UnOp:
+		return fn.X.Name()
+	default:
+		return fn.Name()
+	}
+}
 func (d *DynamicFunctionCall) Arg(idx int) ssa.Value {
 	return d.Args[idx]
 }
@@ -229,7 +245,7 @@ func (b *BuiltinStaticFunctionCall) marker() {}
 func (s *StaticFunctionClosureCall) marker() {}
 func (d *DynamicFunctionCall) marker()       {}
 
-func GetFuncInfo(common *ssa.CallCommon) CallInfo {
+func GetCallInfo(common *ssa.CallCommon) CallInfo {
 	if common.IsInvoke() {
 		// dynamic method call
 		// e.g.
