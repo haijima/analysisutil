@@ -235,6 +235,9 @@ func (d *DynamicFunctionCall) ArgsLen() int {
 
 type CallInfo interface {
 	marker()
+	Name() string
+	Arg(idx int) ssa.Value
+	ArgsLen() int
 }
 
 func (s *StaticMethodCall) marker()          {}
