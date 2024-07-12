@@ -66,7 +66,7 @@ func ValueToStringsWithMaxDepth(v ssa.Value, maxDepth int) ([]string, bool) {
 			case *ssa.BinOp:
 				return binOpToStrings(t, next)
 			case *ssa.Call:
-				switch c := GetFuncInfo(t.Common()).(type) {
+				switch c := GetCallInfo(t.Common()).(type) {
 				case *StaticFunctionCall:
 					if c.Name() == "fmt.Sprintf" {
 						return fmtSprintfToStrings(t, next)
