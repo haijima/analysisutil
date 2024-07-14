@@ -49,9 +49,57 @@ func phiToConsts[T any](t *ssa.Phi, depth, maxDepth int, flattener ToConstsFunc[
 	for _, edge := range t.Edges {
 		if c, ok := valueToConsts(edge, depth, maxDepth, flattener, mapper); ok {
 			res = slices.Concat(res, c)
+		} else {
+			//	return []T{}, false
 		}
 	}
 	return res, len(res) > 0
+	//return valueToConsts[T](t.Edges[0], depth, maxDepth, flattener, mapper)
+}
+
+func ValueToInts(v ssa.Value) ([]int, bool) {
+	return ValueToIntsWithMaxDepth(v, 10)
+}
+
+func ValueToIntsWithMaxDepth(v ssa.Value, maxDepth int) ([]int, bool) {
+	return valueToConsts[int](v, 0, maxDepth,
+		func(v ssa.Value, next func(v ssa.Value) ([]int, bool)) ([]int, bool) {
+			switch t := v.(type) {
+			case *ssa.BinOp:
+				x, xok := next(t.X)
+				y, yok := next(t.Y)
+				if xok && yok && len(x) > 0 && len(y) > 0 {
+					res := make([]int, 0, len(x)*len(y))
+					for _, xx := range x {
+						for _, yy := range y {
+							switch t.Op {
+							case token.ADD:
+								res = append(res, xx+yy)
+							case token.SUB:
+								res = append(res, xx-yy)
+							case token.MUL:
+								res = append(res, xx*yy)
+							case token.QUO:
+								if yy != 0 {
+									res = append(res, xx/yy)
+								}
+							}
+						}
+					}
+					return res, true
+				}
+			}
+			return []int{}, false
+		}, func(t *ssa.Const) (int, bool) {
+			if t.Value != nil && t.Value.Kind() == constant.Int {
+				if s, err := Unquote(t.Value.ExactString()); err == nil {
+					if i, err := strconv.Atoi(s); err == nil {
+						return i, true
+					}
+				}
+			}
+			return 0, false
+		})
 }
 
 func ValueToStrings(v ssa.Value) ([]string, bool) {
@@ -66,13 +114,37 @@ func ValueToStringsWithMaxDepth(v ssa.Value, maxDepth int) ([]string, bool) {
 			case *ssa.BinOp:
 				return binOpToStrings(t, next)
 			case *ssa.Call:
-				switch c := GetCallInfo(t.Common()).(type) {
-				case *StaticFunctionCall:
-					if c.Name() == "fmt.Sprintf" {
-						return fmtSprintfToStrings(t, next)
-					} else if c.Name() == "strings.Join" {
-						return stringsJoinToStrings(t, next)
+				c := GetCallInfo(t.Common())
+				if c.Match("fmt.Sprintf") {
+					return fmtSprintfToStrings(t, next)
+				} else if c.Match("strings.Join") {
+					return stringsJoinToStrings(t, next)
+				}
+			case *ssa.Slice:
+				// e.g.
+				// s := "hello"
+				// s[:len(s)-1]
+				s, ok := next(t.X)
+				if ok {
+					res := make([]string, 0, len(s))
+					for _, ss := range s {
+						l, lok := []int{0}, true
+						h, hok := []int{len(ss)}, true
+						if t.Low != nil {
+							l, lok = stringIndex(t.Low, t.X, len(ss), maxDepth)
+						}
+						if t.High != nil {
+							h, hok = stringIndex(t.High, t.X, len(ss), maxDepth)
+						}
+						if lok && hok {
+							for _, ll := range l {
+								for _, hh := range h {
+									res = append(res, ss[ll:hh])
+								}
+							}
+						}
 					}
+					return res, len(res) > 0
 				}
 			}
 			return []string{}, false
@@ -190,4 +262,27 @@ func Unquote(str string) (string, error) {
 		}
 	}
 	return str, nil
+}
+
+func stringIndex(v ssa.Value, ref ssa.Value, strLen int, maxDepth int) ([]int, bool) {
+	if i, ok := ValueToIntsWithMaxDepth(v, maxDepth); ok {
+		return i, true
+	}
+
+	if binOp, ok := v.(*ssa.BinOp); ok && binOp.Op == token.SUB {
+		if call, ok := binOp.X.(*ssa.Call); ok {
+			c := GetCallInfo(call.Common())
+			if c.Name() == "len" && c.Arg(0) == ref {
+				if y, ok := ValueToIntsWithMaxDepth(binOp.Y, maxDepth); ok {
+					res := make([]int, 0, len(y))
+					for _, yy := range y {
+						res = append(res, strLen-yy)
+					}
+					return res, true
+				}
+			}
+		}
+	}
+
+	return []int{}, false
 }
