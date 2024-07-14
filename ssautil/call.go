@@ -3,6 +3,8 @@ package ssautil
 import (
 	"fmt"
 	"go/types"
+	"regexp"
+	"strings"
 
 	"golang.org/x/tools/go/ssa"
 )
@@ -62,6 +64,20 @@ func (s *StaticMethodCall) Arg(idx int) ssa.Value {
 func (s *StaticMethodCall) ArgsLen() int {
 	return len(s.Args) - 1
 }
+func (s *StaticMethodCall) Match(namePattern string) bool {
+	if s.Name() == namePattern || namePattern == "(*.*).*" {
+		return true
+	}
+	m := staticMethodNamePattern.FindStringSubmatch(namePattern)
+	if len(m) != 4 {
+		return false
+	}
+	p := s.Pkg().Path()
+	r := strings.TrimPrefix(strings.TrimPrefix(s.Recv().Type().String(), "*"), p+".")
+	return (m[1] == p || m[1] == "*") && (m[2] == r || m[2] == "*") && (m[3] == s.Method().Name() || m[3] == "*")
+}
+
+var staticMethodNamePattern = regexp.MustCompile(`^\(\*?(.+)\.([^.]+)\)\.(.+)$`)
 
 type DynamicMethodCall struct {
 	ssa.CallCommon
@@ -92,6 +108,16 @@ func (d *DynamicMethodCall) Arg(idx int) ssa.Value {
 func (d *DynamicMethodCall) ArgsLen() int {
 	return len(d.Args)
 }
+func (d *DynamicMethodCall) Match(namePattern string) bool {
+	if namePattern == d.Name() || namePattern == "*.*.*" {
+		return true
+	}
+	p := d.Pkg().Path()
+	r := strings.TrimPrefix(d.Recv().Type().String(), p+".")
+	m := d.Method().Name()
+	return namePattern == "*."+r+"."+m || namePattern == p+".*."+m || namePattern == p+"."+r+".*" ||
+		namePattern == "*.*."+m || namePattern == p+".*.*" || namePattern == "*."+r+".*"
+}
 
 type BuiltinDynamicMethodCall struct {
 	ssa.CallCommon
@@ -118,6 +144,9 @@ func (b *BuiltinDynamicMethodCall) Arg(idx int) ssa.Value {
 }
 func (b *BuiltinDynamicMethodCall) ArgsLen() int {
 	return len(b.Args)
+}
+func (b *BuiltinDynamicMethodCall) Match(namePattern string) bool {
+	return namePattern == b.Name() || namePattern == "*.*" || namePattern == "*."+b.Method().Name() || namePattern == b.Recv().Type().String()+".*"
 }
 
 type StaticFunctionCall struct {
@@ -150,6 +179,9 @@ func (s *StaticFunctionCall) Arg(idx int) ssa.Value {
 func (s *StaticFunctionCall) ArgsLen() int {
 	return len(s.Args)
 }
+func (s *StaticFunctionCall) Match(namePattern string) bool {
+	return namePattern == s.Name() || namePattern == "*.*" || namePattern == "*."+s.Func().Name() || namePattern == s.Pkg().Path()+".*"
+}
 
 type BuiltinStaticFunctionCall struct {
 	ssa.CallCommon
@@ -173,6 +205,9 @@ func (b *BuiltinStaticFunctionCall) Arg(idx int) ssa.Value {
 }
 func (b *BuiltinStaticFunctionCall) ArgsLen() int {
 	return len(b.Args)
+}
+func (b *BuiltinStaticFunctionCall) Match(namePattern string) bool {
+	return namePattern == b.Name() || namePattern == "*"
 }
 
 type StaticFunctionClosureCall struct {
@@ -204,6 +239,9 @@ func (s *StaticFunctionClosureCall) Arg(idx int) ssa.Value {
 func (s *StaticFunctionClosureCall) ArgsLen() int {
 	return len(s.Args)
 }
+func (s *StaticFunctionClosureCall) Match(namePattern string) bool {
+	return namePattern == s.Name() || namePattern == "*.*" || namePattern == "*."+s.Func().Name() || namePattern == s.Pkg().Path()+".*"
+}
 
 type DynamicFunctionCall struct {
 	ssa.CallCommon
@@ -232,12 +270,16 @@ func (d *DynamicFunctionCall) Arg(idx int) ssa.Value {
 func (d *DynamicFunctionCall) ArgsLen() int {
 	return len(d.Args)
 }
+func (d *DynamicFunctionCall) Match(namePattern string) bool {
+	return false
+}
 
 type CallInfo interface {
 	marker()
 	Name() string
 	Arg(idx int) ssa.Value
 	ArgsLen() int
+	Match(namePattern string) bool
 }
 
 func (s *StaticMethodCall) marker()          {}
