@@ -178,7 +178,7 @@ func GetInstructions(t *testing.T, dir string, patterns ...string) ([]ssa.Instru
 
 	result := make([]ssa.Instruction, 0)
 	for _, pkg := range pkgs {
-		ssaProg, err := analysisutil.BuildSSA(pkg)
+		ssaProg, err := ssautil.BuildSSA(pkg)
 		if err != nil {
 			return nil, err
 		}
