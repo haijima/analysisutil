@@ -28,6 +28,29 @@ func LoadBuildSSAs(dir string, patterns ...string) ([]*buildssa.SSA, error) {
 	return ssaProgs, nil
 }
 
+func LoadInstrs(dir string, patterns ...string) ([]ssa.Instruction, error) {
+	pkgs, err := analysisutil.LoadPackages(dir, patterns...)
+	if err != nil {
+		return nil, err
+	}
+
+	instrs := make([]ssa.Instruction, 0)
+	for _, pkg := range pkgs {
+		ssaProg, err := BuildSSA(pkg)
+		if err != nil {
+			return nil, err
+		}
+		for _, fn := range ssaProg.SrcFuncs {
+			for _, b := range fn.Blocks {
+				for _, instr := range b.Instrs {
+					instrs = append(instrs, instr)
+				}
+			}
+		}
+	}
+	return instrs, nil
+}
+
 // BuildSSA See: buildssa.Analyzer.
 func BuildSSA(pkg *packages.Package) (*buildssa.SSA, error) {
 	prog := ssa.NewProgram(pkg.Fset, ssa.BuilderMode(0))
